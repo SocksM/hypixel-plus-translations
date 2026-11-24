@@ -39,10 +39,23 @@ jobs:
             const report = fs.readFileSync("report/lang-check-report.md", "utf8");
             const body = `${marker}\n${report}`;
             const { owner, repo } = context.repo;
-            const pullRequests = context.payload.workflow_run.pull_requests || [];
+            const workflowRun = context.payload.workflow_run;
+            let pullRequests = workflowRun.pull_requests || [];
+
+            if (pullRequests.length === 0 && workflowRun.head_sha) {
+              pullRequests = await github.paginate(
+                github.rest.repos.listPullRequestsAssociatedWithCommit,
+                {
+                  owner,
+                  repo,
+                  commit_sha: workflowRun.head_sha,
+                  per_page: 100
+                }
+              );
+            }
 
             if (pullRequests.length === 0) {
-              core.setFailed("The completed workflow run is not associated with a pull request.");
+              core.setFailed(`No pull request was found for completed run ${workflowRun.id} (head ${workflowRun.head_sha}).`);
               return;
             }
 
